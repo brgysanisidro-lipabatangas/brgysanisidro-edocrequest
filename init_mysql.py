@@ -1,4 +1,4 @@
-from app import get_db
+from main import get_db
 
 def init_db():
     conn = get_db()

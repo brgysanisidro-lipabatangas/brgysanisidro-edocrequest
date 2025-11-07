@@ -16,13 +16,11 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads/'
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
 # ==================== DATABASE CONNECTION ====================
-
 DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
 DB_NAME = os.getenv("DB_NAME")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
-
 
 def get_db():
     """Return a MySQL connection"""
@@ -36,7 +34,6 @@ def get_db():
         autocommit=False
     )
     return conn
-
 
 def init_db():
     """Initialize MySQL database (create tables and admin user if not exist)"""
@@ -80,12 +77,26 @@ def init_db():
     ) ENGINE=InnoDB;
     ''')
 
+    # ALL_RECORDS TABLE
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS all_records (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        request_id INT,
+        user_id INT,
+        fullname VARCHAR(511),
+        document_type VARCHAR(255),
+        status VARCHAR(50),
+        date_submitted DATETIME,
+        archived_at DATETIME
+    ) ENGINE=InnoDB;
+    ''')
+
     # INSERT ADMIN IF NOT EXISTS
-    admin_email = 'admin@example.com'
+    admin_email = 'barangaysanisidrolipabatangas@gmail.com'
     c.execute('SELECT id FROM users WHERE email = %s', (admin_email,))
     admin = c.fetchone()
     if not admin:
-        hashed = generate_password_hash('admin123')
+        hashed = generate_password_hash('sanisidrolipa')
         c.execute('''
             INSERT INTO users (first_name, last_name, fullname, email, password, contact, role)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -96,15 +107,11 @@ def init_db():
     conn.close()
     print(" MySQL database initialized successfully!")
 
-
 # ==================== VALIDATION ====================
-
 def validate_contact(contact):
     return re.match(r'^09\d{9}$', contact) is not None
 
-
 # ==================== ROUTES ====================
-
 @app.route('/')
 def home():
     lang = session.get('lang', 'en')
@@ -112,13 +119,11 @@ def home():
         return render_template('index_tl.html')
     return render_template('index_en.html')
 
-
 @app.route('/set_language/<lang>')
 def set_language(lang):
     if lang in ['en', 'tl']:
         session['lang'] = lang
     return redirect(request.referrer or url_for('home'))
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
@@ -149,7 +154,6 @@ def login_page():
 
     lang = session.get('lang', 'en')
     return render_template('login_tl.html' if lang == 'tl' else 'login.html')
-
 
 @app.route('/register', methods=['GET', 'POST'])
 def register_page():
@@ -191,12 +195,10 @@ def register_page():
     lang = session.get('lang', 'en')
     return render_template('register_tl.html' if lang == 'tl' else 'register.html')
 
-
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('home'))
-
 
 @app.route('/edit_account', methods=['GET', 'POST'])
 def edit_account():
@@ -261,7 +263,7 @@ def edit_account():
     lang = session.get('lang', 'en')
     return render_template('edit_account_tl.html' if lang == 'tl' else 'edit_account.html', user=user)
 
-
+# ==================== User Dashboard ====================
 @app.route('/user/dashboard', methods=['GET', 'POST'])
 def user_dashboard():
     if 'user_id' not in session or session.get('role') != 'user':
@@ -318,7 +320,7 @@ def user_dashboard():
                            total=total, pending=pending, completed=completed,
                            user_contact=user['contact'] or '', user_requests=user_requests)
 
-
+# ==================== Status Page ====================
 @app.route('/status')
 def status_page():
     if 'user_id' not in session or session.get('role') != 'user':
@@ -335,7 +337,7 @@ def status_page():
     lang = session.get('lang', 'en')
     return render_template('status_tl.html' if lang == 'tl' else 'status.html', requests=requests_list)
 
-
+# ==================== Admin Dashboard ====================
 @app.route('/admin/dashboard', methods=['GET', 'POST'])
 def admin_dashboard():
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -364,12 +366,11 @@ def admin_dashboard():
     requests_list = cur.fetchall()
 
     # Stats
-    cur.execute('SELECT COUNT(*) AS cnt FROM users WHERE role = "user"')
+    cur.execute("SELECT COUNT(*) AS cnt FROM users WHERE role = %s", ('user',))
     total_users = cur.fetchone()['cnt']
     cur.execute('SELECT COUNT(*) AS cnt FROM requests')
     total_requests = cur.fetchone()['cnt']
 
-    # Fix: always define users_list regardless of search_query
     if search_query:
         cur.execute('''SELECT id, first_name, last_name, fullname, email 
                        FROM users
@@ -378,7 +379,7 @@ def admin_dashboard():
                     (f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'))
         users_list = cur.fetchall()
     else:
-        cur.execute('SELECT id, first_name, last_name, fullname, email FROM users WHERE role = "user"')
+        cur.execute('SELECT id, first_name, last_name, fullname, email FROM users WHERE role = %s', ('user',))
         users_list = cur.fetchall()
 
     cur.close()
@@ -396,9 +397,7 @@ def admin_dashboard():
         status_filter=status_filter
     )
 
-# -------------------------------
-# ADMIN: View All Records
-# -------------------------------
+# ==================== Admin: All Records ====================
 @app.route('/admin/all-records', methods=['GET', 'POST'])
 def all_records():
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -423,11 +422,10 @@ def all_records():
         requests=requests_list
     )
 
+# ==================== Admin: Delete Requests/Records ====================
 @app.route('/admin/delete_selected_requests', methods=['POST'])
 def delete_selected_requests():
-    """Delete multiple selected requests permanently"""
     selected_ids = request.form.getlist('request_ids')
-
     if not selected_ids:
         flash("No requests selected for deletion.", "warning")
         return redirect(url_for('all_records'))
@@ -454,23 +452,21 @@ def delete_selected_records():
         return redirect(url_for('login_page'))
 
     selected_ids = request.form.getlist('record_ids')
-
     if not selected_ids:
         flash('No records selected for deletion.', 'warning')
         return redirect(url_for('all_records'))
 
     conn = get_db()
     cur = conn.cursor()
-
     format_strings = ','.join(['%s'] * len(selected_ids))
     cur.execute(f"DELETE FROM all_records WHERE id IN ({format_strings})", tuple(selected_ids))
     conn.commit()
-
     cur.close()
     conn.close()
     flash('Selected records deleted successfully.', 'success')
     return redirect(url_for('all_records'))
 
+# ==================== Admin: Update Status / Delete Request ====================
 @app.route('/update_status/<int:req_id>/<status>')
 def update_status(req_id, status):
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -491,24 +487,18 @@ def update_status(req_id, status):
     flash(f"Request status updated to {status}!", "success")
     return redirect(url_for('admin_dashboard'))
 
-
 @app.route('/delete_request/<int:req_id>')
 def delete_request(req_id):
     conn = get_db()
     cur = conn.cursor()
-
-    # Kunin muna ang request bago burahin
     cur.execute("SELECT * FROM requests WHERE id = %s", (req_id,))
     req = cur.fetchone()
 
     if req:
-        # Insert muna sa all_records table (backup log)
         cur.execute("""
             INSERT INTO all_records (request_id, user_id, fullname, document_type, status, date_submitted, archived_at)
             VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        """, (req['id'], req['user_id'], req['full_name'], req['document_type'], req['status'], req['date_submitted']))
-
-        # Burahin sa main requests table
+        """, (req['id'], req['user_id'], req['full_name'], req['document_type'], req['status'], req['created_at']))
         cur.execute("DELETE FROM requests WHERE id = %s", (req_id,))
         conn.commit()
         flash("Request has been moved to All Records.", "success")
@@ -519,12 +509,12 @@ def delete_request(req_id):
     conn.close()
     return redirect(url_for('admin_dashboard'))
 
-
-
+# ==================== Error Handler ====================
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404
 
-
 if __name__ == '__main__':
+    init_db()  # This will create the tables if they don't exist
     app.run(debug=True)
+
