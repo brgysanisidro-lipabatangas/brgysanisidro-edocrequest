@@ -354,12 +354,12 @@ def admin_dashboard():
 
     # Request list (for documents)
     if status_filter:
-         cur.execute('''SELECT r.id, u.fullname, u.email, r.document_type, r.purpose, r.status, r.date_submitted
+         cur.execute('''SELECT r.id, u.fullname, u.email, r.document_type, r.purpose, r.status, r.created_at
                    FROM requests r JOIN users u ON r.user_id = u.id
-                   WHERE r.status = %s ORDER BY r.date_submitted DESC''', (status_filter,))
+                   WHERE r.status = %s ORDER BY r.created_at DESC''', (status_filter,))
     else:
-        cur.execute('''SELECT r.id, u.fullname, u.email, r.document_type, r.purpose, r.status, r.date_submitted
-                    FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.date_submitted DESC''')
+        cur.execute('''SELECT r.id, u.fullname, u.email, r.document_type, r.purpose, r.status, r.created_at
+                    FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC''')
 
     requests_list = cur.fetchall()
 
